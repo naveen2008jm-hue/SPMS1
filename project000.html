@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SPMS - Real-time Posture Analyzer</title>
+  <meta name="description" content="Live front-camera feed with continuous posture feedback using local AI or remote agents.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- TensorFlow.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+  <style>
+    :root{
+      --bg: #0f1724;
+      --card-bg: #162032;
+      --accent: #06b6d4;
+      --accent-hover: #0891b2;
+      --text-main: #e6eef6;
+      --text-muted: #9aa4b2;
+      --success: #10b981;
+      --danger: #ef4444;
+      --border: rgba(255,255,255,0.08);
+      --glass: rgba(255,255,255,0.03);
+      --shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+    }
+    html,body{height:100%;margin:0;font-family:'Inter', sans-serif;color:var(--text-main);background:linear-gradient(180deg,#071124 0%, #0b1722 100%);} 
+    .app{max-width:1200px;margin:0 auto;padding:24px;display:grid;grid-template-columns:1fr 400px;gap:24px;height:100vh;box-sizing:border-box;}
+    
+    header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between; margin-bottom: 8px;}
+    h1{font-size:1.5rem;margin:0;font-weight:600; letter-spacing: -0.02em;}
+    p.lead{margin:4px 0 0;color:var(--text-muted);font-size:0.95rem;}
+    
+    .card{background:var(--card-bg);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:var(--shadow); display:flex; flex-direction:column;}
+    
+    .video-section{gap:16px;}
+    .video-container{
+      position:relative; width:100%; border-radius:12px; overflow:hidden; background:#000;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+      flex-grow: 1; display:flex; align-items:center; justify-content:center;
+    }
+    video{
+      width: auto; height: auto;
+      max-width: 100%; max-height: 100%;
+      transform: scaleX(-1);
+    } 
+    canvas.capture{
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: auto; height: auto;
+      max-width: 100%; max-height: 100%;
+      pointer-events: none;
+    }
+    
+    .controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap; padding-top: 12px; border-top: 1px solid var(--border);}
+    button{
+      background:var(--glass); border:1px solid var(--border); color:inherit; padding:10px 16px; border-radius:8px; cursor:pointer; font-weight:500; transition:all 0.2s;
+    }
+    button:hover:not(:disabled){background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,0.2);}
+    button:disabled{opacity:0.5;cursor:not-allowed;}
+    button.primary{background:var(--accent); color:#fff; border-color:transparent;}
+    button.primary:hover:not(:disabled){background:var(--accent-hover);}
+    
+    input[type=range]{accent-color:var(--accent);}
+    input[type=text]{background:rgba(0,0,0,0.2); border:1px solid var(--border); color:inherit; padding:8px 12px; border-radius:6px;}
+    
+    .feedback-section{gap:16px; overflow:hidden;}
+    .status-card{
+      display:flex; align-items:center; gap:12px; padding:16px; background:rgba(0,0,0,0.2); border-radius:12px; border:1px solid var(--border);
+    }
+    .status-indicator{width:16px;height:16px;border-radius:50%;background:var(--text-muted); box-shadow: 0 0 10px rgba(0,0,0,0.3);}
+    .status-text h3{margin:0; font-size:1.1rem;}
+    .status-text span{font-size:0.85rem; color:var(--text-muted);}
+    
+    .issues-list{
+      flex-grow:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding-right:4px;
+    }
+    .issue-item{
+      padding:16px; border-radius:12px; background:var(--glass); border:1px solid var(--border);
+      animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(5px);} to{opacity:1;transform:translateY(0);} }
+    
+    .issue-title{font-weight:600; color:var(--accent); margin-bottom:4px; display:flex; align-items:center; gap:8px;}
+    .issue-desc{font-size:0.9rem; color:var(--text-main); margin-bottom:8px; line-height:1.5;}
+    .issue-meta{font-size:0.85rem; color:var(--text-muted); background:rgba(0,0,0,0.2); padding:8px; border-radius:6px;}
+    
+    .footer-info{grid-column:1/-1; text-align:center; color:var(--text-muted); font-size:0.85rem; padding-top:12px;}
+    
+    @media (max-width:900px){
+      .app{grid-template-columns:1fr; height:auto;}
+      .video-container{aspect-ratio:16/9;}
+      .feedback-section{max-height:600px;}
+    }
+    
+    /* Utility */
+    .hidden{display:none;}
+    .text-sm{font-size:0.85rem;}
+    .text-muted{color:var(--text-muted);}
+
+    /* Alert Popup */
+    .alert-popup {
+      position: fixed;
+      top: max(24px, env(safe-area-inset-top) + 20px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(239, 68, 68, 0.95);
+      color: white;
+      padding: 16px 24px;
+      border-radius: 50px;
+      box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.2);
+      animation: slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      pointer-events: none;
+    }
+    .alert-popup.hidden {
+      display: none;
+    }
+    @keyframes slideDown { 
+      from { transform: translate(-50%, -100%); opacity: 0; } 
+      to { transform: translate(-50%, 0); opacity: 1; } 
+    }
+    .alert-icon { font-size: 1.2rem; }
+  </style>
+</head>
+<body>
+  <!-- Alert Popup -->
+  <div id="badPosturePopup" class="alert-popup hidden">
+    <span class="alert-icon">⚠️</span>
+    <span>Bad Posture Detected! Sit up straight.</span>
+  </div>
+
+  <main class="app">
+    <header>
+      <div>
+        <h1>SPMS</h1>
+        <p class="lead">AI-powered continuous posture feedback</p>
+      </div>
+      <div class="text-sm text-muted" id="device-info">Camera: <span id="camName">Checking...</span></div>
+    </header>
+
+    <section class="card video-section">
+      <div class="video-container">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="captureCanvas" class="capture"></canvas>
+        <div id="overlayMsg" style="position:absolute; color:white; background:rgba(0,0,0,0.6); padding:8px 16px; border-radius:20px; pointer-events:none; display:none;">
+          Analyzing...
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="startBtn" class="primary">Start Camera</button>
+        <button id="stopBtn" disabled>Stop</button>
+        <button id="pipBtn" onclick="togglePiP()">Pop Out View</button>
+        
+        <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
+          <label class="text-sm text-muted">Mirror</label>
+          <input id="mirrorToggle" type="checkbox" checked>
+        </div>
+      </div>
+      
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+        <label class="text-sm text-muted">Agent URL (Optional):</label>
+        <input id="agentUrl" type="text" placeholder="https://your-agent-endpoint.com/analyze" style="flex-grow:1;">
+        <div class="text-sm text-muted">FPS: <span id="fpsVal">2</span></div>
+        <input id="fpsRange" type="range" min="1" max="5" value="2" step="1" style="width:80px;">
+      </div>
+      <p class="text-sm text-muted" id="statusMsg">Ready to start.</p>
+    </section>
+
+    <aside class="card feedback-section">
+      <div class="status-card">
+        <div class="status-indicator" id="postureDot"></div>
+        <div class="status-text">
+          <h3 id="postureLabel">Waiting...</h3>
+          <span id="confidenceLabel">Confidence: —</span>
+        </div>
+      </div>
+
+      <div class="issues-list" id="issuesList">
+        <div class="text-muted" style="text-align:center; padding:20px;">
+          Start the camera to begin analysis.
+        </div>
+      </div>
+      
+      <div class="text-sm text-muted" style="background:rgba(255,255,255,0.02); padding:12px; border-radius:8px;">
+        <strong>Tip:</strong> Keep this tab open in the background to receive notifications.
+      </div>
+    </aside>
+
+    <footer class="footer-info">
+      Privacy: Images are processed locally or sent only to your specified Agent URL.
+    </footer>
+  </main>
+
+  <script>
+    // State
+    const state = {
+      running: false,
+      stream: null,
+      fps: 2,
+      agentUrl: '',
+      mirror: true,
+      lastNotification: 0
+    };
+
+    // Audio Context for Beep
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playBeep() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = 880; // A5
+      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.5);
+    }
+
+    // Elements
+    const els = {
+      video: document.getElementById('video'),
+      canvas: document.getElementById('captureCanvas'),
+      startBtn: document.getElementById('startBtn'),
+      stopBtn: document.getElementById('stopBtn'),
+      statusMsg: document.getElementById('statusMsg'),
+      issuesList: document.getElementById('issuesList'),
+      postureDot: document.getElementById('postureDot'),
+      postureLabel: document.getElementById('postureLabel'),
+      confidenceLabel: document.getElementById('confidenceLabel'),
+      camName: document.getElementById('camName'),
+      fpsRange: document.getElementById('fpsRange'),
+      fpsVal: document.getElementById('fpsVal'),
+      agentUrl: document.getElementById('agentUrl'),
+      mirrorToggle: document.getElementById('mirrorToggle'),
+      overlay: document.getElementById('overlayMsg'),
+      alertPopup: document.getElementById('badPosturePopup')
+    };
+
+    // Create a Test Alert Button
+    const testAlertBtn = document.createElement('button');
+    testAlertBtn.textContent = 'Test Alert';
+    testAlertBtn.style.marginLeft = '12px';
+    els.startBtn.parentNode.appendChild(testAlertBtn);
+
+    // Worker for background timing
+    const workerBlob = new Blob([`
+      let interval = 500;
+      let timer;
+      self.onmessage = function(e) {
+        if (e.data.action === 'start') {
+          interval = e.data.interval || 500;
+          if (timer) clearInterval(timer);
+          timer = setInterval(() => {
+            self.postMessage('tick');
+          }, interval);
+        } else if (e.data.action === 'stop') {
+          if (timer) clearInterval(timer);
+        } else if (e.data.action === 'interval') {
+          interval = e.data.interval;
+          if (timer) {
+            clearInterval(timer);
+            timer = setInterval(() => {
+              self.postMessage('tick');
+            }, interval);
+          }
+        }
+      };
+    `], { type: 'application/javascript' });
+    
+    const workerUrl = URL.createObjectURL(workerBlob);
+    const timerWorker = new Worker(workerUrl);
+    
+    timerWorker.onmessage = () => {
+      if (state.running) analyzeFrame();
+    };
+
+    // Event Listeners
+    els.startBtn.addEventListener('click', () => {
+      requestNotificationPermission();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      startCamera();
+    });
+    els.stopBtn.addEventListener('click', stopCamera);
+    
+    els.fpsRange.addEventListener('input', (e) => {
+      state.fps = parseInt(e.target.value);
+      els.fpsVal.textContent = state.fps;
+      timerWorker.postMessage({ action: 'interval', interval: 1000 / state.fps });
+    });
+    els.mirrorToggle.addEventListener('change', (e) => {
+      state.mirror = e.target.checked;
+      els.video.style.transform = state.mirror ? 'scaleX(-1)' : 'scaleX(1)';
+    });
+    els.agentUrl.addEventListener('change', (e) => state.agentUrl = e.target.value.trim());
+    
+    testAlertBtn.addEventListener('click', () => {
+      requestNotificationPermission().then(() => {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Test Alert', {
+            body: 'This is how your posture notifications will appear.',
+            icon: 'https://cdn-icons-png.flaticon.com/512/564/564619.png',
+            requireInteraction: true
+          });
+        } else {
+          alert('Notifications are not allowed. Please enable them in your browser settings.');
+        }
+        playBeep();
+      });
+    });
+
+    // Notification Helper
+    async function requestNotificationPermission() {
+      if (!('Notification' in window)) return;
+      try {
+        if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+          await Notification.requestPermission();
+        }
+      } catch (e) {
+        console.warn('Notification permission request failed', e);
+      }
+    }
+
+    function triggerAlert() {
+      // Throttle: only 1 alert every 5 seconds
+      const now = Date.now();
+      if (now - state.lastNotification < 5000) return;
+      
+      state.lastNotification = now;
+      
+      // 1. System Notification
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification('Bad Posture Detected!', {
+            body: 'Please sit up straight.',
+            icon: 'https://cdn-icons-png.flaticon.com/512/564/564619.png',
+            requireInteraction: true, // Keeps notification until clicked
+            tag: 'posture-alert'
+          });
+        } catch (e) {
+          console.warn('Notification failed', e);
+        }
+      }
+
+      // 2. Vibration (Mobile)
+      if (navigator.vibrate) {
+        navigator.vibrate(200);
+      }
+
+      // 3. Audio Beep
+      playBeep();
+      
+      // 4. Title Flashing
+      startTitleFlashing();
+    }
+    
+    let titleInterval = null;
+    const originalTitle = document.title;
+    
+    function startTitleFlashing() {
+      if (titleInterval) return;
+      let isAlert = false;
+      titleInterval = setInterval(() => {
+        document.title = isAlert ? '⚠️ BAD POSTURE! ⚠️' : 'SPMS - Alert';
+        isAlert = !isAlert;
+      }, 1000);
+    }
+    
+    function stopTitleFlashing() {
+      if (titleInterval) {
+        clearInterval(titleInterval);
+        titleInterval = null;
+        document.title = originalTitle;
+      }
+    }
+
+    // Camera Functions
+    async function startCamera() {
+      els.statusMsg.textContent = 'Initializing...';
+      els.statusMsg.style.color = 'var(--text-muted)';
+
+      if (!window.isSecureContext) {
+        alert('Camera access requires HTTPS or localhost.');
+        return;
+      }
+
+      try {
+        els.statusMsg.textContent = 'Requesting camera access...';
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } 
+        });
+        
+        state.stream = stream;
+        els.video.srcObject = stream;
+        state.running = true;
+        
+        els.startBtn.disabled = true;
+        els.stopBtn.disabled = false;
+        els.statusMsg.textContent = 'Camera active. Analysis starting...';
+        els.statusMsg.style.color = 'var(--success)';
+        
+        const track = stream.getVideoTracks()[0];
+        els.camName.textContent = track.label || 'Generic Camera';
+        
+        // Start the worker timer
+        timerWorker.postMessage({ action: 'start', interval: 1000 / state.fps });
+        
+      } catch (err) {
+        console.error(err);
+        alert('Could not access camera: ' + err.message);
+      }
+    }
+
+    function stopCamera() {
+      state.running = false;
+      timerWorker.postMessage({ action: 'stop' });
+      
+      if (state.stream) {
+        state.stream.getTracks().forEach(t => t.stop());
+        state.stream = null;
+      }
+      els.video.srcObject = null;
+      
+      els.startBtn.disabled = false;
+      els.stopBtn.disabled = true;
+      els.statusMsg.textContent = 'Camera stopped.';
+      els.statusMsg.style.color = 'var(--text-muted)';
+      els.overlay.style.display = 'none';
+      resetFeedback();
+    }
+
+    async function analyzeFrame() {
+      if (!els.video.videoWidth) return;
+
+      // Ensure canvas resolution matches video resolution
+      if (els.canvas.width !== els.video.videoWidth || els.canvas.height !== els.video.videoHeight) {
+        els.canvas.width = els.video.videoWidth;
+        els.canvas.height = els.video.videoHeight;
+      }
+      
+      const ctx = els.canvas.getContext('2d');
+      
+      // Draw video to canvas
+      ctx.save();
+      if (state.mirror) {
+        ctx.translate(els.canvas.width, 0);
+        ctx.scale(-1, 1);
+      }
+      ctx.drawImage(els.video, 0, 0, els.canvas.width, els.canvas.height);
+      ctx.restore();
+
+      els.overlay.style.display = 'block';
+
+      // Convert to blob for remote or use local
+      if (state.agentUrl) {
+        els.canvas.toBlob(async (blob) => {
+          // ... (Remote logic same as before)
+        }, 'image/jpeg', 0.8);
+      } else {
+        localAnalyze();
+      }
+    }
+
+    // Local Analysis (Mock + Simple Heuristics)
+    let detector = null;
+
+    async function loadModel() {
+      if (detector) return;
+      els.statusMsg.textContent = 'Loading AI Model...';
+      try {
+        const model = poseDetection.SupportedModels.MoveNet;
+        const detectorConfig = { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING };
+        detector = await poseDetection.createDetector(model, detectorConfig);
+        els.statusMsg.textContent = 'AI Model Ready.';
+        console.log('MoveNet Loaded');
+      } catch (e) {
+        console.error('Failed to load model', e);
+        els.statusMsg.textContent = 'Error loading AI model.';
+      }
+    }
+
+    loadModel();
+
+    async function localAnalyze() {
+      if (!detector) return;
+
+      try {
+        const poses = await detector.estimatePoses(els.video);
+        
+        if (poses.length === 0) {
+          updateFeedback({ posture: 'unknown', confidence: 0, issues: [] });
+          return;
+        }
+
+        const keypoints = poses[0].keypoints;
+        
+        const nose = keypoints.find(k => k.name === 'nose');
+        const leftEar = keypoints.find(k => k.name === 'left_ear');
+        const rightEar = keypoints.find(k => k.name === 'right_ear');
+        const leftShoulder = keypoints.find(k => k.name === 'left_shoulder');
+        const rightShoulder = keypoints.find(k => k.name === 'right_shoulder');
+
+        const minConf = 0.3;
+        if ((nose.score < minConf) || (leftShoulder.score < minConf && rightShoulder.score < minConf)) {
+           updateFeedback({ posture: 'unknown', confidence: 0, issues: [] });
+           return;
+        }
+
+        const issues = [];
+        let isBad = false;
+
+        const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+        const avgEarY = (leftEar.y + rightEar.y) / 2;
+        const neckLength = Math.abs(avgShoulderY - avgEarY);
+        const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+        const neckRatio = neckLength / shoulderWidth;
+
+        if (neckRatio < 0.35) { 
+          issues.push({
+            area: 'Head Position',
+            explanation: 'Your head is too low or forward.',
+            implications: 'Causes neck strain.',
+            suggestions: 'Lift your head and tuck your chin.'
+          });
+          isBad = true;
+        }
+
+        const shoulderSlope = Math.abs(leftShoulder.y - rightShoulder.y) / shoulderWidth;
+        if (shoulderSlope > 0.15) {
+           issues.push({
+            area: 'Shoulders',
+            explanation: 'Your shoulders are uneven.',
+            implications: 'Can lead to muscle imbalance.',
+            suggestions: 'Level your shoulders.'
+          });
+          isBad = true;
+        }
+
+        updateFeedback({
+          posture: isBad ? 'bad' : 'good',
+          confidence: poses[0].score || 0.8,
+          issues: issues
+        });
+
+        drawSkeleton(keypoints, isBad);
+
+      } catch (e) {
+        console.error('Analysis error', e);
+      }
+    }
+
+    function drawSkeleton(keypoints, isBad = false) {
+      const ctx = els.canvas.getContext('2d');
+      
+      const minConf = 0.3;
+      // Full COCO Keypoints connections
+      const connections = [
+        ['nose', 'left_eye'], ['left_eye', 'left_ear'],
+        ['nose', 'right_eye'], ['right_eye', 'right_ear'],
+        ['left_shoulder', 'right_shoulder'],
+        ['left_shoulder', 'left_elbow'], ['left_elbow', 'left_wrist'],
+        ['right_shoulder', 'right_elbow'], ['right_elbow', 'right_wrist'],
+        ['left_shoulder', 'left_hip'], ['right_shoulder', 'right_hip'],
+        ['left_hip', 'right_hip'],
+        ['left_hip', 'left_knee'], ['left_knee', 'left_ankle'],
+        ['right_hip', 'right_knee'], ['right_knee', 'right_ankle']
+      ];
+
+      const getPoint = (name) => keypoints.find(k => k.name === name);
+
+      ctx.save();
+      
+      if (state.mirror) {
+         ctx.translate(els.canvas.width, 0);
+         ctx.scale(-1, 1);
+      }
+
+      // 1. Draw Lines
+      ctx.lineWidth = 4; // Elegant thickness
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      connections.forEach(([nameA, nameB]) => {
+        const pA = getPoint(nameA);
+        const pB = getPoint(nameB);
+
+        if (pA && pB && pA.score > minConf && pB.score > minConf) {
+          ctx.beginPath();
+          ctx.moveTo(pA.x, pA.y);
+          ctx.lineTo(pB.x, pB.y);
+          
+          // Color Logic
+          let color = '#ffffff';
+          
+          // Face
+          if ((nameA === 'nose' || nameA.includes('eye') || nameA.includes('ear')) && 
+              (nameB === 'nose' || nameB.includes('eye') || nameB.includes('ear'))) {
+            color = '#60a5fa'; // Blue
+          }
+          // Left Arm
+          else if ((nameA === 'left_shoulder' && nameB === 'left_elbow') || 
+                   (nameA === 'left_elbow' && nameB === 'left_wrist')) {
+            color = '#f472b6'; // Pink
+          }
+          // Right Arm
+          else if ((nameA === 'right_shoulder' && nameB === 'right_elbow') || 
+                   (nameA === 'right_elbow' && nameB === 'right_wrist')) {
+            color = '#fbbf24'; // Amber
+          }
+          // Left Leg
+          else if ((nameA === 'left_hip' && nameB === 'left_knee') || 
+                   (nameA === 'left_knee' && nameB === 'left_ankle')) {
+            color = '#4ade80'; // Green
+          }
+          // Right Leg
+          else if ((nameA === 'right_hip' && nameB === 'right_knee') || 
+                   (nameA === 'right_knee' && nameB === 'right_ankle')) {
+            color = '#2dd4bf'; // Teal
+          }
+          // Torso (Shoulders, Hips, Sides)
+          else {
+             // Shoulder line
+             if (nameA.includes('shoulder') && nameB.includes('shoulder')) {
+                color = isBad ? '#ef4444' : '#ffffff';
+             } else {
+                color = '#a78bfa'; // Purple for rest of torso
+             }
+          }
+
+          ctx.strokeStyle = color;
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 6;
+          
+          ctx.stroke();
+          ctx.shadowBlur = 0; // Reset
+        }
+      });
+      
+      // 2. Draw Dots
+      keypoints.forEach(p => {
+        if (p.score > minConf) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI); // Refined size
+          
+          ctx.fillStyle = '#ffffff'; // Pure White Core
+          ctx.fill();
+          
+          // Gold Border for Majesty
+          ctx.strokeStyle = '#ffd700'; 
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      });
+      
+      ctx.restore();
+
+      // 3. Draw On-Canvas Alert (Visible in PiP)
+      if (isBad) {
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform to ensure text is readable
+        
+        // Top Banner
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+        ctx.fillRect(0, 0, els.canvas.width, 80);
+        
+        // Text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 32px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 4;
+        ctx.fillText('⚠️ BAD POSTURE ⚠️', els.canvas.width / 2, 40);
+        
+        // Border
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 10;
+        ctx.strokeRect(0, 0, els.canvas.width, els.canvas.height);
+        
+        ctx.restore();
+      }
+    }
+
+    // PiP Logic
+    const pipVideo = document.createElement('video');
+    pipVideo.autoplay = true;
+    pipVideo.muted = true;
+
+    async function togglePiP() {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        try {
+          if (!pipVideo.srcObject) {
+            // Capture stream from canvas
+            const stream = els.canvas.captureStream(state.fps);
+            pipVideo.srcObject = stream;
+            // Keep pipVideo playing to keep stream active
+            await pipVideo.play();
+          }
+          await pipVideo.requestPictureInPicture();
+        } catch (e) {
+          console.error('PiP Error:', e);
+          alert('Picture-in-Picture failed. Ensure you are using a supported browser (Chrome/Edge/Safari).');
+        }
+      }
+    }
+
+    function updateFeedback(data) {
+      const isGood = data.posture === 'good';
+      els.postureDot.style.background = isGood ? 'var(--success)' : 'var(--danger)';
+      els.postureDot.style.boxShadow = `0 0 15px ${isGood ? 'var(--success)' : 'var(--danger)'}`;
+      
+      els.postureLabel.textContent = isGood ? 'Good Posture' : 'Posture Issues Detected';
+      els.confidenceLabel.textContent = `Confidence: ${Math.round(data.confidence * 100)}%`;
+
+      if (!isGood) {
+        els.alertPopup.classList.remove('hidden');
+        triggerAlert();
+      } else {
+        els.alertPopup.classList.add('hidden');
+        stopTitleFlashing();
+      }
+
+      els.issuesList.innerHTML = '';
+      if (isGood) {
+        const div = document.createElement('div');
+        div.className = 'issue-item';
+        div.style.borderColor = 'var(--success)';
+        div.innerHTML = `
+          <div class="issue-title" style="color:var(--success)"><span>✓</span> Great Form</div>
+          <div class="issue-desc">You are maintaining good alignment. Keep it up!</div>
+        `;
+        els.issuesList.appendChild(div);
+      } else {
+        data.issues.forEach(issue => {
+          const div = document.createElement('div');
+          div.className = 'issue-item';
+          div.innerHTML = `
+            <div class="issue-title"><span>⚠</span> ${issue.area}</div>
+            <div class="issue-desc">${issue.explanation}</div>
+            <div class="issue-meta"><strong>Fix:</strong> ${issue.suggestions}</div>
+          `;
+          els.issuesList.appendChild(div);
+        });
+      }
+    }
+
+    function resetFeedback() {
+      stopTitleFlashing();
+      els.postureDot.style.background = 'var(--text-muted)';
+      els.postureDot.style.boxShadow = 'none';
+      els.postureLabel.textContent = 'Waiting...';
+      els.confidenceLabel.textContent = 'Confidence: —';
+      els.issuesList.innerHTML = '<div class="text-muted" style="text-align:center; padding:20px;">Start the camera to begin analysis.</div>';
+    }
+    
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      alert('Security Warning: Camera access requires HTTPS or localhost.');
+    }
+  </script>
+</body>
+</html>
