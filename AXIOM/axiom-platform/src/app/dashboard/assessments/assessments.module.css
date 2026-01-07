@@ -1,0 +1,151 @@
+.container {
+  padding: 0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.title {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  color: var(--text-muted);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.statCard {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 140px;
+}
+
+.statLabel {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.statValue {
+  font-size: 36px;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  margin-top: 8px;
+}
+
+.statTrend {
+  font-size: 13px;
+  margin-top: auto;
+}
+
+.sectionTitle {
+  font-size: 20px;
+  margin-bottom: 20px;
+}
+
+.assessmentList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.assessmentItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.assessmentItem:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border-glass);
+}
+
+.itemInfo {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+
+.iconBox {
+  width: 48px;
+  height: 48px;
+  background: rgba(0, 242, 255, 0.1);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  font-size: 20px;
+}
+
+.itemMeta {
+  display: flex;
+  flex-direction: column;
+}
+
+.itemName {
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.itemDate {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.progressBar {
+  width: 120px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 3px;
+}
+
+.statusBadge {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.btnSmall {
+  background: transparent;
+  border: 1px solid var(--border-glass);
+  color: var(--text-main);
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnSmall:hover {
+  border-color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+}

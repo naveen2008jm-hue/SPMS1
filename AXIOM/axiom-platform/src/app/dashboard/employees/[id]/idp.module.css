@@ -1,0 +1,150 @@
+.profileHeader {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.avatarLg {
+  width: 100px;
+  height: 100px;
+  font-size: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-dim), var(--secondary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  border: 2px solid var(--border-glass);
+}
+
+.headerInfo h1 {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.headerMeta {
+  display: flex;
+  gap: 16px;
+  color: var(--text-muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 1024px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sectionTitle {
+  font-size: 20px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.skillRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+}
+
+.skillInfo h4 {
+  margin-bottom: 4px;
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 200px;
+}
+
+.barWrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.barTrack {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.planCard {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-glass);
+  padding: 20px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.planCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--primary);
+}
+
+.planType {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 8px;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.planTitle {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.planDesc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.btnAction {
+  background: white;
+  color: black;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
