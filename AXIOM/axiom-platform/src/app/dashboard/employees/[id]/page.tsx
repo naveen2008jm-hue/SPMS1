@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { use } from 'react';
 import Link from 'next/link';
 import styles from './idp.module.css';
 
@@ -46,8 +46,10 @@ const EMPLOYEE_DATA = {
   ]
 };
 
-export default function EmployeeProfile({ params }: { params: { id: string } }) {
-  // In a real app, use params.id to fetch data. Using mock for now.
+export default function EmployeeProfile({ params }: { params: Promise<{ id: string }> }) {
+  // Unwrap params using React.use()
+  const { id } = use(params);
+  // In a real app, use id to fetch data. Using mock for now.
   const emp = EMPLOYEE_DATA;
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').substring(0, 2);
@@ -164,9 +166,11 @@ export default function EmployeeProfile({ params }: { params: { id: string } }) 
              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
                "Sarah would benefit from focusing on System Design this quarter to prepare for the Staff Engineer promotion track."
              </p>
-             <button style={{ background: 'none', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-               Ask AXIOM Coach
-             </button>
+             <Link href={`/dashboard/coaching?employee=${encodeURIComponent(emp.name)}`}>
+               <button style={{ background: 'none', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                 Ask AXIOM Coach
+               </button>
+             </Link>
           </div>
         </div>
       </div>

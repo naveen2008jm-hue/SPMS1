@@ -110,7 +110,9 @@ export default function SkillsPage() {
           <h1 className={styles.title}>Skill Matrix</h1>
           <p className={styles.subtitle}>Comprehensive view of workforce competencies and proficiency levels.</p>
         </div>
-        <button className="btn-primary">Add Skill Assessment</button>
+        <Link href="/dashboard/assessments">
+          <button className="btn-primary">Add Skill Assessment</button>
+        </Link>
       </header>
 
       {/* Filters */}

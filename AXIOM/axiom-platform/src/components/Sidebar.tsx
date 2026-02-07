@@ -10,6 +10,7 @@ const navItems = [
   { name: 'Employees', path: '/dashboard/employees' },
   { name: 'Recruitment', path: '/dashboard/recruitment' },
   { name: 'Assessments', path: '/dashboard/assessments' },
+  { name: 'AI Coaching', path: '/dashboard/coaching' },
   { name: 'ROI Analysis', path: '/dashboard/roi' },
   { name: 'Settings', path: '/dashboard/settings' },
 ];
